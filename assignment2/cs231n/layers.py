@@ -25,7 +25,11 @@ def affine_forward(x, w, b):
     # TODO: Implement the affine forward pass. Store the result in out. You   #
     # will need to reshape the input into rows.                               #
     ###########################################################################
-    pass
+    N = x.shape[0]
+    D = np.prod(x.shape[1:])
+    
+    x_ = x.reshape(N,D)
+    out = np.dot(x_, w) + b 
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -54,7 +58,15 @@ def affine_backward(dout, cache):
     ###########################################################################
     # TODO: Implement the affine backward pass.                               #
     ###########################################################################
-    pass
+    N = x.shape[0]
+    D = np.prod(x.shape[1:])
+    
+    x_ = x.reshape(N,D)
+    
+    db = np.sum(dout, axis=0)
+    dw = np.dot(x_.T, dout)  # (D,M) = (D,N) x (N,M)
+    dx_ = np.dot(dout, w.T) # (N,D) = (N,M) x (M,D)
+    dx = dx_.reshape(x.shape)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -76,7 +88,9 @@ def relu_forward(x):
     ###########################################################################
     # TODO: Implement the ReLU forward pass.                                  #
     ###########################################################################
-    pass
+
+    out = (x > 0) * x
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -99,7 +113,9 @@ def relu_backward(dout, cache):
     ###########################################################################
     # TODO: Implement the ReLU backward pass.                                 #
     ###########################################################################
-    pass
+
+    dx = (x > 0) * dout
+    
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -175,7 +191,17 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # Referencing the original paper (https://arxiv.org/abs/1502.03167)   #
         # might prove to be helpful.                                          #
         #######################################################################
-        pass
+        sample_mean = np.mean(x, axis=0) # D,
+        sample_var = np.mean((x - sample_mean)**2, axis=0) # D,
+        running_mean = momentum * running_mean + (1 - momentum) * sample_mean
+        running_var = momentum * running_var + (1 - momentum) * sample_var
+
+        numer = x - sample_mean # N,D
+        inv_denom = 1 / np.sqrt(sample_var + eps) # D,
+        x_norm  = numer * inv_denom # N,D
+        out = x_norm * gamma + beta # N,D
+        
+        cache = sample_mean, sample_var, numer, inv_denom, x_norm, gamma
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -186,7 +212,8 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        pass
+        x_norm  = (x - running_mean) / np.sqrt(running_var + eps)
+        out = x_norm * gamma + beta
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -224,7 +251,19 @@ def batchnorm_backward(dout, cache):
     # Referencing the original paper (https://arxiv.org/abs/1502.03167)       #
     # might prove to be helpful.                                              #
     ###########################################################################
-    pass
+    N,D = dout.shape
+    sample_mean, sample_var, numer, inv_denom, x_norm, gamma = cache
+    
+    dbeta = np.sum(dout, axis=0) # D,
+    dgamma = np.sum(x_norm * dout, axis=0)  # D,
+    dx_norm = dout * gamma  # N,D
+    dinv_denom = np.sum(numer * dx_norm, axis=0) # D,
+    dnumer = inv_denom * dx_norm # N,D
+    dvar = -0.5 * (inv_denom)**3 * dinv_denom # D,
+    dmean = -np.sum(dnumer, axis=0) # D,
+    dx = dnumer + \
+            1/N * np.outer(np.ones(N), dmean) + \
+            2/N * numer * dvar
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -255,7 +294,15 @@ def batchnorm_backward_alt(dout, cache):
     # should be able to compute gradients with respect to the inputs in a     #
     # single statement; our implementation fits on a single 80-character line.#
     ###########################################################################
-    pass
+    N, D = dout.shape
+    sample_mean, sample_var, numer, inv_denom, x_norm, gamma = cache
+
+    dbeta = np.sum(dout, axis=0) # D,
+    dgamma = np.sum(x_norm * dout, axis=0) # D,
+    dx = 1/N * gamma * inv_denom * \
+        (N * dout - np.sum(dout, axis=0) - \
+         numer * inv_denom**2 * np.sum(dout * numer, axis=0))
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
