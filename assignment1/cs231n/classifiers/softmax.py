@@ -82,19 +82,62 @@ def softmax_loss_vectorized(W, X, y, reg):
     _, C = W.shape
 
     # forward pass
-    onehot = np.eye(C)[y] # N,C
+    score = np.dot(X, W) # N,D x D,C = N,C
+    score -= np.max(score, axis=1).reshape(N,1) # stabilize f
+    exp = np.exp(score) # N,C
+    expsum = np.sum(exp, axis=1) # N,1
+    prob = exp / expsum.reshape(N,1) # N,C
+    loss = -np.log(prob[np.arange(N), y]) # N,1
+
+    # back pass
+    dproby = -1. / prob[np.arange(N), y] # N,1
+    dexpsum = -1. / expsum**2 * exp[np.arange(N), y] * dproby # N,1
+    dexp = np.repeat(dexpsum.reshape(N,1), C, axis=1) # N,C
+    dexp[np.arange(N), y] += 1. / expsum * dproby # N,
+    dscore = exp * dexp # N,C
+    dW = np.dot(X.T, dscore) # D,C
+
+    loss = np.sum(loss) / N
+    dW /= N
+
+    loss += 0.5 * reg * np.sum(W * W)
+    dW += reg * W
+    #############################################################################
+    #                          END OF YOUR CODE                                 #
+    #############################################################################
+
+    return loss, dW
+
+def softmax_loss_alt(W, X, y, reg):
+    """
+    Softmax loss function, vectorized version.
+
+    Inputs and outputs are the same as softmax_loss_naive.
+    """
+    # Initialize the loss and gradient to zero.
+    loss = 0.0
+    dW = np.zeros_like(W)
+
+    #############################################################################
+    # TODO: Compute the softmax loss and its gradient using no explicit loops.  #
+    # Store the loss in loss and the gradient in dW. If you are not careful     #
+    # here, it is easy to run into numeric instability. Don't forget the        #
+    # regularization!                                                           #
+    #############################################################################
+    N, D = X.shape
+    _, C = W.shape
+
+    # forward pass
     score = np.dot(X, W) # N,D x D,C = N,C
     score -= np.max(score, axis=1).reshape(N, 1) # stabilize f
     exp = np.exp(score) # N,C
     expsum = np.sum(exp, axis=1).reshape(N, 1) # N,1
     prob = exp / expsum # N,C
-    loss = -np.log(prob[onehot==1]) # N,1
+    loss = -np.log(prob[np.arange(N), y]) # N,1
 
     # back pass
-    dproby = (-1.0 / prob[onehot==1]).reshape(N, 1) # N,1
-    dexpsum = -1.0 / expsum**2 * exp[onehot==1].reshape(N, 1) * dproby # N,1
-    dexp = onehot / expsum * dproby + np.ones_like(exp) * dexpsum # N,C
-    dscore = exp * dexp # N,C
+    dscore = prob # N,C
+    dscore[np.arange(N), y] -= 1
     dW = np.dot(X.T, dscore) # D,C
 
     loss = np.sum(loss) / N
